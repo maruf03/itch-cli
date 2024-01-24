@@ -9,35 +9,30 @@ import java.util.Random;
 
 public class TotalviewMessageGenerator implements ITCHMessageGenerator {
     Random random;
-    String[] messageTypes = { "T", "S", "L", "M", "P", "R", "H", "Z" }; // ITCH Index
-    byte[] eventCodes = { 'O', 'S', 'Q', 'M', 'E', 'C', 'A', 'B', 'I' }; // System Event Codes
+    static String[] messageTypes = {"T", "S", "L", "M", "P", "R", "H", "A", "E", "C", "B", "D", "U", "I", "Q"}; // ITCH TotalView
+    final static byte[] eventCodes = {'O', 'S', 'Q', 'M', 'E', 'C', 'A', 'B', 'I'}; // System Event Codes
 
-    String[][] companyDetails = { { "1234", "ACI Limited", "ACI" }, { "5678", "The City Bank Ltd.", "CITYBANK" } }; // Company
-                                                                                                                    // Details:
-                                                                                                                    // {Company
-                                                                                                                    // Unique
-                                                                                                                    // ID,
-                                                                                                                    // Company
-                                                                                                                    // Name,
-                                                                                                                    // Company
-                                                                                                                    // Ticker}
+    String[][] companyDetails = {{"1234", "ACI Limited", "ACI"}, {"5678", "The City Bank Ltd.", "CITYBANK"}};
 
-    static byte[] tradingState = { 'V', 'T' };
+    final static byte[] tradingState = {'V', 'T'};
 
-    static byte[] tradingStateReason = { ' ', 'I', 'i' };
+    final static byte[] tradingStateReason = {' ', 'I', 'i'};
 
-    byte[] priceType = { 'U', 'P' };
+    final static byte[] priceType = {'U', 'P'};
 
-    byte[] marketType = { 'S', 'P', 'I' };
+    final static byte[] marketType = {'S', 'P', 'I'};
 
-    byte[] listingType = { 'A', 'B', 'N', 'Z' };
+    final static byte[] listingType = {'A', 'B', 'N', 'Z'};
 
-    Map<Integer, String[]> orderbookDirectory = Map.ofEntries(
-            Map.entry(1234,
-                    new String[] { "ISIN12345678", "SEC001", "USD", "GroupA", "50", "101", "201", "2", "20240101",
-                            "1200", "123", "Finance", "InstrumentAB", "ABC Corporation" }),
-            Map.entry(5678, new String[] { "ISIN98765432", "SEC002", "EUR", "GroupB", "75", "102", "202", "3",
-                    "20241231", "1400", "456", "Technology", "InstrumentXY", "XYZ Corporation" }));
+    final static byte[] orderVerbs = {'B', 'S'};
+
+    final static byte[] printable = {'Y', 'N'};
+
+    final static byte[] brokenTradeReason = {'S'};
+
+    final static byte[] crossType = {'O', 'C', 'I'};
+
+    Map<Integer, String[]> orderbookDirectory = Map.ofEntries(Map.entry(1234, new String[]{"ISIN12345678", "SEC001", "USD", "GroupA", "50", "101", "201", "2", "20240101", "1200", "123", "Finance", "InstrumentAB", "ABC Corporation"}), Map.entry(5678, new String[]{"ISIN98765432", "SEC002", "EUR", "GroupB", "75", "102", "202", "3", "20241231", "1400", "456", "Technology", "InstrumentXY", "XYZ Corporation"}));
 
     public TotalviewMessageGenerator() {
         random = new Random();
@@ -63,9 +58,127 @@ public class TotalviewMessageGenerator implements ITCHMessageGenerator {
             case "P" -> generateCompanyDirectory();
             case "R" -> generateOrderbookDirectory();
             case "H" -> generateOrderbookTradingAction();
-            case "Z" -> generateIndexValue();
+            case "A" -> generateAddOrder();
+            case "E" -> generateOrderExecuted();
+            case "C" -> generateOrderExecutedWithPrice();
+            case "B" -> generateBrokenTrade();
+            case "D" -> generateOrderDelete();
+            case "U" -> generateOrderReplace();
+            case "I" -> generateIndicativePrice();
+            case "Q" -> generateTrade();
             default -> throw new IllegalStateException("Unexpected value: " + messageType);
         };
+    }
+
+    private ByteBuffer generateTrade() {
+        ByteBuffer buffer = ByteBuffer.allocate(30); // Total length as per the specification
+
+        buffer.put((byte) 'Q'); // Message Type
+        buffer.putInt(LocalTime.now().toSecondOfDay()); // Timestamp
+        buffer.putLong(100000L); // executed quantity
+        buffer.putInt(15000); // orderbook
+        buffer.put(printable[random.nextInt(printable.length)]); // Printable
+        buffer.putInt(150); // execution price
+        buffer.putLong(100000L); // match number
+
+        buffer.flip();
+        return buffer;
+    }
+
+    private ByteBuffer generateIndicativePrice() {
+        ByteBuffer buffer = ByteBuffer.allocate(30); // Total length as per the specification
+
+        buffer.put((byte) 'I'); // Message Type
+        buffer.putInt(LocalTime.now().toSecondOfDay()); // Timestamp
+        buffer.putLong(100000L); // theoretical opening quantity
+        buffer.putInt(15000); // orderbook
+        buffer.putInt(150); // best bid
+        buffer.putInt(145); // best offer
+        buffer.putInt(15000); // theoretical opening price
+        buffer.put(crossType[random.nextInt(crossType.length)]); // Cross Type
+
+        buffer.flip();
+        return buffer;
+    }
+
+    private ByteBuffer generateOrderReplace() {
+        ByteBuffer buffer = ByteBuffer.allocate(33); // Total length as per the specification
+
+        buffer.put((byte) 'U'); // Message Type
+        buffer.putInt(LocalTime.now().toSecondOfDay()); // Timestamp
+        buffer.putLong(987654321L); // original Order Number
+        buffer.putLong(987654322L); // new Order Number
+        buffer.putLong(1000L); // Quantity
+        buffer.putInt(15000); // Price
+
+        buffer.flip();
+        return buffer;
+    }
+
+    private ByteBuffer generateOrderDelete() {
+        ByteBuffer buffer = ByteBuffer.allocate(13); // Total length as per the specification
+
+        buffer.put((byte) 'D'); // Message Type
+        buffer.putInt(LocalTime.now().toSecondOfDay()); // Timestamp - Nanoseconds
+        buffer.putLong(987654321L); // Order Reference Number
+
+        buffer.flip();
+        return buffer;
+    }
+
+    private ByteBuffer generateBrokenTrade() {
+        ByteBuffer buffer = ByteBuffer.allocate(14); // Total length as per the specification
+
+        buffer.put((byte) 'B'); // Message Type
+        buffer.putInt(LocalTime.now().toSecondOfDay()); // Timestamp
+        buffer.putLong(987654321L); // Match Number
+        buffer.put(brokenTradeReason[random.nextInt(brokenTradeReason.length)]); // Order Verb (Buy)
+
+        buffer.flip();
+        return buffer;
+    }
+
+    private ByteBuffer generateOrderExecutedWithPrice() {
+        ByteBuffer buffer = ByteBuffer.allocate(34); // Total length as per the specification
+
+        buffer.put((byte) 'C'); // Message Type
+        buffer.putInt(LocalTime.now().toSecondOfDay()); // Timestamp - Nanoseconds
+        buffer.putLong(987654321L); // Order Reference Number
+        buffer.putLong(50); // Executed Shares
+        buffer.putLong(11223344L); // Match Number
+        buffer.put(printable[random.nextInt(printable.length)]); // Printable
+        buffer.putInt(15000); // Printable Price
+
+        buffer.flip();
+        return buffer;
+    }
+
+    private ByteBuffer generateOrderExecuted() {
+        ByteBuffer buffer = ByteBuffer.allocate(29); // Total length as per the specification
+
+        buffer.put((byte) 'E'); // Message Type
+        buffer.putInt(LocalTime.now().toSecondOfDay()); // Timestamp - Nanoseconds
+        buffer.putLong(987654321L); // Order Reference Number
+        buffer.putLong(50); // Executed Shares
+        buffer.putLong(11223344L); // Match Number
+
+        buffer.flip();
+        return buffer;
+    }
+
+    private ByteBuffer generateAddOrder() {
+        ByteBuffer buffer = ByteBuffer.allocate(30); // Total length as per the specification
+
+        buffer.put((byte) 'A'); // Message Type
+        buffer.putInt(LocalTime.now().toSecondOfDay()); // Timestamp
+        buffer.putLong(987654321L); // Order Number
+        buffer.put(orderVerbs[random.nextInt(orderVerbs.length)]); // Order Verb (Buy)
+        buffer.putLong(1000L); // Quantity
+        buffer.putInt(1234); // Orderbook
+        buffer.putInt(Integer.decode("0x7FFFFFFF")); // Price
+
+        buffer.flip();
+        return buffer;
     }
 
     private ByteBuffer generateIndexValue() {
@@ -118,9 +231,9 @@ public class TotalviewMessageGenerator implements ITCHMessageGenerator {
         buffer.put(listingType[random.nextInt(listingType.length)]); // ListingType
         buffer.put(String.format("%-" + 12 + "s", orderbookDetails[11]).getBytes()); // Sector right padded with spaces
         buffer.put(String.format("%-" + 12 + "s", orderbookDetails[12]).getBytes()); // Instrument right padded with
-                                                                                     // spaces
+        // spaces
         buffer.put(String.format("%-" + 60 + "s", orderbookDetails[13]).getBytes()); // SecurityName right padded with
-                                                                                     // spaces
+        // spaces
 
         buffer.flip();
         return buffer;
